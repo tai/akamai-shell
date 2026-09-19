@@ -6,6 +6,7 @@ const readline = require('node:readline');
 const { spawn } = require('node:child_process');
 
 const { isStatementComplete } = require('./statement-completion');
+const { findCommandSubstitution } = require('./substitution-context');
 
 const SHELL_COMMAND_PATTERN =
   /^(?:!.*|get|post|put|find|show|set|echo|record|history|save|load|help|\?|exit|quit)(?:\s|$)/;
@@ -263,8 +264,10 @@ async function runInteractive(options = {}) {
       const rawSource = rl.line.slice(0, rl.cursor);
       const source = rawSource.endsWith('?') ? rawSource.slice(0, -1) : rawSource;
       const sourceCursor = rawSource.endsWith('?') ? rl.cursor - 1 : rl.cursor;
-      if (isInsideQuotes(rl.line, sourceCursor) ||
-          !/^(?:get|post|put)\s+\S+/.test(source)) {
+      const substitution = findCommandSubstitution(source);
+      const commandSource = substitution?.source || source;
+      if ((isInsideQuotes(rl.line, sourceCursor) && !substitution) ||
+          !/^(?:get|post|put)\s+\S+/.test(commandSource)) {
         return false;
       }
       backend.contextHelp(source).then((entries) => {

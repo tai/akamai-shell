@@ -560,6 +560,40 @@ test('provides JavaScript and shell completion through the backend', async () =>
   await backend.shutdown();
 });
 
+test('completes commands inside JavaScript command substitutions', async () => {
+  const registry = {
+    completeMethod: async (method, inputPath) => {
+      assert.equal(method, 'GET');
+      assert.equal(inputPath, '/papi/v1/pr');
+      return [['/papi/v1/properties'], '/papi/v1/pr'];
+    },
+    hasCompletionDescendants: () => false,
+    parameterHelp: () => [{ name: 'groupId', in: 'query', description: 'The group.' }]
+  };
+  const { input, messages, backend } = harness({ apiRegistry: registry });
+  input.write(JSON.stringify({
+    id: 78,
+    type: 'complete',
+    source: 'value = await $("get /papi/v1/pr'
+  }) + '\n');
+  input.write(JSON.stringify({
+    id: 79,
+    type: 'context-help',
+    source: 'value = await $("get /papi/v1/properties '
+  }) + '\n');
+  await settle();
+  await backend.queue;
+  assert.deepEqual(
+    messages.find((message) => message.id === 78 && message.type === 'result').result,
+    { candidates: ['/papi/v1/properties'], replacement: '/papi/v1/pr' }
+  );
+  assert.deepEqual(
+    messages.find((message) => message.id === 79 && message.type === 'result').result,
+    [{ name: 'groupId==', description: 'The group.' }]
+  );
+  await backend.shutdown();
+});
+
 test('completes shell files after escapes and pipelines', async () => {
   const { input, messages, backend } = harness();
   input.write('{"id":70,"type":"complete","source":"! cat src/back"}\n');

@@ -11,6 +11,7 @@ const apiRegistry = require('./api-registry');
 const { sortCandidates } = require('./path-completion');
 const { findResources } = require('./find');
 const { createRecorder } = require('./recorder');
+const { findCommandSubstitution } = require('./substitution-context');
 
 const DEFAULT_TIMEOUT = 10000;
 const DEFAULT_STATE_FILE = path.join(os.homedir(), '.config', 'akamai-shell', 'state.js');
@@ -946,6 +947,8 @@ class Backend {
     const source = String(code || '')
       .slice(0, Number.isInteger(cursor) ? cursor : undefined)
       .trimStart();
+    const substitution = findCommandSubstitution(source);
+    if (substitution) return this.complete(substitution.source);
     const shellResult = await shellCompletion(source, (token) => this.expandCommandVariables(token));
     if (shellResult) return shellResult;
     const showMatch = source.match(/^show\s+(.+)$/);
@@ -1100,6 +1103,8 @@ class Backend {
   }
 
   contextHelp(source) {
+    const substitution = findCommandSubstitution(source);
+    if (substitution) return this.contextHelp(substitution.source);
     const match = String(source).match(/^(get|post|put)\s+(\S+)(?:\s+(.*))?$/);
     if (!match) return [];
     const [, method, pathToken, argumentsText] = match;
